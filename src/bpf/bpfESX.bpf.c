@@ -1878,10 +1878,8 @@ int tracepoint__syscalls__sys_enter_execve(struct trace_event_raw_sys_enter* ctx
 			return 0;
 
 		ret = bpf_probe_read_user_str(&event->args[event->args_size], ARGSIZE, argp);
-
 		if (ret > ARGSIZE)
 			return 0;
-
 		event->args_count++;
 		event->args_size += ret;
 	}
@@ -1895,10 +1893,10 @@ int tracepoint__syscalls__sys_enter_execve(struct trace_event_raw_sys_enter* ctx
 //	bpf_printk("araall=%s",&event->args);
 	return 0;
 
-
-
-
 }
+
+
+
 SEC("tracepoint/syscalls/sys_exit_execve")
 int tracepoint__syscalls__sys_exit_execve(struct trace_event_raw_sys_exit* ctx)
 {
@@ -2001,6 +1999,51 @@ int uprobe_setlogin(struct pt_regs *ctx)
 
     return 0;
 };
+
+SEC("uprobe")
+int trace_pam_open_session(struct pt_regs *ctx)
+{
+    if (!PT_REGS_PARM1(ctx)){
+        return 0;
+    }
+    struct pam_handle* phandle = (struct pam_handle *)PT_REGS_PARM1(ctx);
+    char* user_ptr;
+    bpf_probe_read_user(&user_ptr, sizeof(user_ptr), &phandle->user);
+
+    if(user_ptr == NULL){
+        return 0;
+    }
+
+    char login[USERNAME_MAX_LENGTH] = {};
+    bpf_probe_read_user_str(&login,USERNAME_MAX_LENGTH,user_ptr);
+
+    char* rhost_ptr;
+    bpf_probe_read_user(&rhost_ptr, sizeof(rhost_ptr), &phandle->rhost);
+    char rhost_name[USERNAME_MAX_LENGTH] = {};
+    bpf_probe_read_user_str(&rhost_name,USERNAME_MAX_LENGTH,rhost_ptr);
+
+
+
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    struct conn_id_t* connId = bpf_map_lookup_elem(&conn_ids,&pid_tgid);
+    if(!connId){
+        return 0;
+    }
+    struct conn_info_t* connInfo = bpf_map_lookup_elem(&conn_infos,&connId);
+    if(!connInfo){
+        return 0;
+    }
+    connInfo->protocol = kProtocolSSH;
+    bpf_printk("pam_open_session triggered..,user name: %s  \n",login);
+    bpf_printk("pam_open_session triggered..,rhost name: %s  \n",rhost_name);
+
+    u32 pid = bpf_get_current_pid_tgid() >> 32;
+    u32 tgid = (u32)bpf_get_current_pid_tgid();
+    u32 uid = bpf_get_current_uid_gid()>>32;
+    create_process(pid,tgid,uid,config_id);
+    return 0;
+}
+
 /*
  * uprobe_closefrom is used to track new logins in the ssh daemon
  */

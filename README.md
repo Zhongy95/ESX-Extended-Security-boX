@@ -23,3 +23,10 @@ CONFIG_LSM="bpf"
 
 ## Audit mode
 `sudo cargo run daemon --audit start  `
+
+## Policy & Config
+```
+./policy/config.toml
+./policy/rule_testing.toml
+
+```

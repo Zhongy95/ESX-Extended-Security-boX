@@ -129,3 +129,22 @@ pub fn get_symbol_address(so_path: &str, fn_name: &str) -> Result<usize> {
     // println!("relate：{:x}",relate_addr);
     Ok(symbol.address() as usize)
 }
+pub fn find_libpam_path()->Result<Vec<PathBuf>>{
+    let target_directory = "/usr/lib/x86_64-linux-gnu";
+
+    let mut libpam_paths = Vec::new();
+    if let Ok(entries) = fs::read_dir(target_directory){
+        for entry in entries{
+            if let Ok(entry) = entry {
+                let path = entry.path();
+                if let Some(file_name) = path.file_name().unwrap().to_str(){
+                    if file_name.starts_with("libpam.so"){
+                        println!("File found:{}",path.to_str().unwrap());
+                        libpam_paths.push(path);
+                    }
+                }
+            }
+        }
+    }
+    Ok(libpam_paths)
+}

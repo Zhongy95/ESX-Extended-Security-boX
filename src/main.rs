@@ -27,7 +27,7 @@ use clap::{App, AppSettings, Arg, crate_authors, crate_name, crate_version, SubC
 use log::LevelFilter::Info;
 use bpfESX::log::*;
 use bpfESX::subcommands::*;
-use bpfESX::utils::get_symbol_address;
+use bpfESX::utils::{find_libpam_path, get_symbol_address};
 
 
 fn main() -> Result<()> {
@@ -233,6 +233,22 @@ fn attach_uprobes(skel: &mut BpfESXSkel) -> Result<()> {
     //     .uprobe_setlogin()
     //     .attach_uprobe_symbol(false, -1, path_ssh, "setlogin").expect("failed to attach uprobe")
     //     .into();
+
+    let libpam_paths = find_libpam_path().expect("failed to find libpam paths");
+
+    for libpam_path in libpam_paths{
+        let opensession_link_result = skel
+            .progs_mut().
+            trace_pam_open_session()
+            .attach_uprobe_dynsymbol(false,-1,&*libpam_path,"pam_open_session");
+
+        match opensession_link_result {
+            Ok(opensession_link)=>{
+                let _ =skel.links.trace_pam_open_session.insert(opensession_link);
+            }
+            Err(_e)=>{}
+        }
+    }
 
     Ok(())
 }
